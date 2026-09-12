@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Genius Song Unreleased Tag
 // @namespace    https://github.com/jespermhl/genius-unreleased-userscript
-// @version      2.3.0
+// @version      2.3.1
 // @description  Shows "(Unreleased)" after every song in a tracklist on genius.com (album pages and song pages with an embedded album tracklist) that carries the "Unreleased" tag.
-// @author       jespermahel
+// @author       jespermhl
 // @match        https://genius.com/albums/*
 // @match        https://genius.com/*-lyrics
 // @match        https://genius-staging.com/albums/*
