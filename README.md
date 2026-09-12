@@ -20,7 +20,7 @@ Alben enthalten oft Tracks, die noch nicht offiziell released sind. Auf Genius w
 ## Installation
 
 1. Userscript-Manager installieren ([Tampermonkey](https://www.tampermonkey.net/) oder [Violentmonkey](https://violentmonkey.github.io/)).
-2. `genius-unreleased.user.js` öffnen – der Manager bietet automatisch an, das Script zu installieren.
+2. Direkt installieren: [genius-unreleased.user.js](https://github.com/jespermhl/genius-unreleased-userscript/raw/refs/heads/main/genius-unreleased.user.js) – der Manager bietet automatisch an, das Script zu installieren.
 3. Auf ein V3\*-Album oder eine VICKY-Song-Seite gehen – fertig.
 
 ## Verwendung
