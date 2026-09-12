@@ -39,8 +39,6 @@ No configuration required. The script runs on:
 3. **Tag check**: Songs whose ID already resolved to `Unreleased` (tag ID `2883`) in the preloaded state get the label immediately. All others are checked in batches (6 parallel) via the Genius API.
 4. **Insertion**: The text `(Unreleased)` is written directly into the song title link, before the “Lyrics” subtitle.
 
-E2E DOM tests run with `jsdom` (real saved pages for the legacy album layout and the React song layout, plus a synthetic new-album page).
-
 ## License
 
 [MIT](LICENSE)
