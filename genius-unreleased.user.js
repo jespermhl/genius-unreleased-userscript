@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Genius Song Unreleased Tag
 // @namespace    https://github.com/jespermhl/genius-unreleased-userscript
-// @version      2.2.0
-// @description  Zeigt "(Unreleased)" hinter jedem Song in einer Tracklist auf genius.com (Album-Seiten sowie Song-Seiten mit eingebetteter Album-Tracklist), der den "Unreleased"-Tag trägt.
+// @version      2.3.0
+// @description  Shows "(Unreleased)" after every song in a tracklist on genius.com (album pages and song pages with an embedded album tracklist) that carries the "Unreleased" tag.
 // @author       jespermahel
 // @match        https://genius.com/albums/*
 // @match        https://genius.com/*-lyrics
@@ -20,9 +20,9 @@
     const BATCH = 6;
 
     // Layouts:
-    //  - 'old'   Alte Album-Seite  (.chart_row)
-    //  - 'album' Neue React-Album-Seite  (a.Track__Container-*)
-    //  - 'song'  React-Song-Seite mit eingebetteter Tracklist  (ol.AlbumTracklist__Container-*)
+    //  - 'old'   Legacy album page  (.chart_row)
+    //  - 'album' New React album page  (a.Track__Container-*)
+    //  - 'song'  React song page with embedded tracklist  (ol.AlbumTracklist__Container-*)
     const LAYOUTS = {
         old: {
             row: '.chart_row',
@@ -72,14 +72,14 @@
             try {
                 return JSON.parse(raw);
             } catch (err) {
-                // Fallback: Regex-Kartierung unten
+                // Fallback: regex-based row mapping below
             }
         }
 
         return null;
     }
 
-    // Durchsucht ein Objekt nach dem ersten Vorkommen eines Keys (max. Tiefe 5).
+    // Finds the first occurrence of a key inside an object (max depth 5).
     function findIn(obj, key, depth = 0) {
         if (obj == null || depth > 5) return undefined;
         if (Array.isArray(obj)) {
@@ -107,9 +107,9 @@
         return [];
     }
 
-    // Baut Song-Mapping aus dem Preloaded-State:
-    //  pathToId  (Song-Pfad -> ID), titleToId (Titel -> ID), orderedIds (Track-Reihenfolge),
-    //  preloadedUnreleased (IDs, die bereits im State als "Unreleased" erkannt wurden).
+    // Builds song mapping from the preloaded state:
+    //  pathToId  (song path -> ID), titleToId (title -> ID), orderedIds (track order),
+    //  preloadedUnreleased (song IDs already identified as "Unreleased" in the state).
     function collectSongs() {
         const state = getPreloadedState();
         if (!state) return null;
@@ -134,7 +134,7 @@
             }
         }
 
-        // Tag-IDs aus entities.tags auflösen (Name "Unreleased" oder /tags/unreleased).
+        // Resolve tag IDs from entities.tags (name "Unreleased" or /tags/unreleased).
         const tagsEntity = findIn(state, 'tags');
         if (tagsEntity && typeof tagsEntity === 'object') {
             const isUnreleasedTag = (tagId) => {
@@ -169,7 +169,7 @@
             if (typeof song.title === 'string') titleToId.set(song.title.trim(), id);
         }
 
-        // Track-Reihenfolge: bevorzugt albums[].tracklist, sonst Reihenfolge der albumAppearances.
+        // Track order: prefer albums[].tracklist, otherwise the albumAppearances order.
         const albumsEntity = findIn(state, 'albums');
         if (albumsEntity && typeof albumsEntity === 'object') {
             for (const album of asList(albumsEntity)) {
@@ -252,7 +252,7 @@
         return infos;
     }
 
-    // ---------------------------------------------------------------- Tag-Check
+    // ---------------------------------------------------------------- Tag check
 
     const tagResultCache = new Map();
 
@@ -297,7 +297,7 @@
         else info.anchor.appendChild(textNode);
     }
 
-    // ---------------------------------------------------------------- Hauptlogik
+    // ---------------------------------------------------------------- Main logic
 
     async function processRows(rows, songs, layout) {
         const infos = getRowSongInfo(rows, songs, layout);
@@ -340,7 +340,7 @@
         schedule();
     }
 
-    // Neu gerenderte Zeilen (z.B. nach SPA-Navigation oder React-Re-Render) nachziehen.
+    // Re-process newly rendered rows (e.g. after SPA navigation or React re-renders).
     const observer = new MutationObserver((mutations) => {
         let needsRun = false;
         for (const mutation of mutations) {

@@ -1,46 +1,46 @@
 # Genius Song Unreleased Tag
 
-Ein Userscript, das auf [genius.com](https://genius.com) hinter jedem Song einer Tracklist den Zusatz **„(Unreleased)"** in den Songtitel schreibt, sobald der Song mit dem Tag **Unreleased** versehen ist.
+A userscript that appends the marker **“(Unreleased)”** directly to the song title of every track in a tracklist on [genius.com](https://genius.com) that carries the **Unreleased** tag.
 
-## Warum?
+## Why?
 
-Alben enthalten oft Tracks, die noch nicht offiziell released sind. Auf Genius werden diese Songs mit dem Tag `Unreleased` markiert – in der Tracklist sieht man das aber nicht. Dieses Script holt die Tag-Informationen und zeigt den Status direkt im Titel.
+Albums often contain tracks that have not been officially released yet. On Genius these songs are marked with the tag `Unreleased` – but you cannot see that in the tracklist. This script fetches the tag information and shows the status right in the title.
 
 ## Features
 
-- Unterstützt **alle drei Rendering-Varianten** von Genius:
-  - Alte Album-Seiten (`.chart_row`)
-  - Neue React-Album-Seiten (`Track__Container-*`)
-  - Song-Seiten mit eingebetteter Album-Tracklist (`AlbumTracklist__Track-*`)
-- Holt die Tag-Infos über die offizielle Genius-API (`/api/songs/{id}`)
-- Nutzt den eingebetteten `__PRELOADED_STATE__` des Styles für eine **Schnellprüfung** (kein API-Call für den aktuellen Song)
-- Ergebnis-Cache gegen Mehrfach-Fetches bei React-Re-Renders
-- HTML/Text wird nativ eingefügt – kein Obtrusive Styling, passt sich an helles und dunkles Theme an
+- Supports **all three rendering variants** of Genius:
+  - Legacy album pages (`.chart_row`)
+  - New React album pages (`Track__Container-*`)
+  - Song pages with an embedded album tracklist (`AlbumTracklist__Track-*`)
+- Fetches tag information through the official Genius API (`/api/songs/{id}`)
+- Uses the page’s embedded `__PRELOADED_STATE__` as a **fast path** (no API call for the current song)
+- Result cache to avoid duplicate fetches on React re-renders
+- Inserts plain text – no intrusive styling, adapts to light and dark themes
 
 ## Installation
 
-1. Userscript-Manager installieren ([Tampermonkey](https://www.tampermonkey.net/) oder [Violentmonkey](https://violentmonkey.github.io/)).
-2. Direkt installieren: [genius-unreleased.user.js](https://github.com/jespermhl/genius-unreleased-userscript/raw/refs/heads/main/genius-unreleased.user.js) – der Manager bietet automatisch an, das Script zu installieren.
-3. Auf ein V3\*-Album oder eine VICKY-Song-Seite gehen – fertig.
+1. Install a userscript manager ([Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/)).
+2. Install directly: [genius-unreleased.user.js](https://github.com/jespermhl/genius-unreleased-userscript/raw/refs/heads/main/genius-unreleased.user.js) – your manager will offer to install the script.
+3. Go to an album or song page – done.
 
-## Verwendung
+## Usage
 
-Keine Konfiguration nötig. Das Script läuft auf:
+No configuration required. The script runs on:
 
 - `https://genius.com/albums/*`
 - `https://genius.com/*-lyrics`
 - `https://genius-staging.com/albums/*`
 - `https://genius-staging.com/*-lyrics`
 
-## Wie es funktioniert
+## How it works
 
-1. **Layout-Erkennung**: Das Script erkennt anhand der DOM-Klassen, welche Variante die Seite nutzt.
-2. **Song-Mapping**: Aus dem `__PRELOADED_STATE__` des Styles werden Song-Pfade, -Titel und die Track-Reihenfolge extrahiert und jeder Tracklist-Zeile eine Song-ID zugeordnet (Href → Titel → Reihenfolge).
-3. **Tag-Check**: Songs, deren ID im Preloaded-State bereits als `Unreleased` (Tag-ID `2883`) erkannt wurde, bekommen sofort das Label. Alle anderen werden batched (6 parallel) über die Genius-API geprüft.
-4. **Einfügen**: Der Text `(Unreleased)` wird direkt in den Songtitel-Link geschrieben, vor dem „Lyrics"-Subtitle.
+1. **Layout detection**: The script detects which variant the page uses based on the DOM classes.
+2. **Song mapping**: Song paths, titles, and track order are extracted from the page’s `__PRELOADED_STATE__` and each tracklist row is mapped to a song ID (href → title → order).
+3. **Tag check**: Songs whose ID already resolved to `Unreleased` (tag ID `2883`) in the preloaded state get the label immediately. All others are checked in batches (6 parallel) via the Genius API.
+4. **Insertion**: The text `(Unreleased)` is written directly into the song title link, before the “Lyrics” subtitle.
 
-E2E-DOM-Tests laufen mit `jsdom` (echte gespeicherte Seiten für altes Album-Layout und React-Song-Layout plus synthetische neue-Album-Seite).
+E2E DOM tests run with `jsdom` (real saved pages for the legacy album layout and the React song layout, plus a synthetic new-album page).
 
-## Lizenz
+## License
 
 [MIT](LICENSE)
