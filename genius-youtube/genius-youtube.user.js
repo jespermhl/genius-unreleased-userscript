@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.3.0
+// @version      1.3.1
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -386,7 +386,7 @@
 
     function headerHtml() {
         const cls = (native.fieldLabel || HEADER_CLASS).trim();
-        return '<span class="' + cls + '" style="display:block;">Vorschläge von YouTube</span>';
+        return '<span class="' + cls + '" style="display:block;font-size:13px;text-transform:none;letter-spacing:0;color:#111;font-weight:600;line-height:1.4;">Vorschläge von YouTube</span>';
     }
 
     function showLoading() {
@@ -446,8 +446,8 @@
         const rows = resultsEl ? resultsEl.querySelectorAll('[data-index]') : [];
         rows.forEach((el, i) => {
             el.className = base;
-            if (i !== index) el.style.background = '';
-            else el.style.background = '#FFFF64';
+            if (i === index) el.style.background = '#f5f5f5';
+            else el.style.background = '';
         });
         const active = rows[activeIndex];
         if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
@@ -484,7 +484,7 @@
             '.' + THUMB_CLASS + '{width:64px;height:36px;object-fit:cover;border-radius:2px;flex:none;}',
             '.genius-yt-results__body{min-width:0;flex:1;}',
             '.' + TITLE_CLASS + '{font-weight:bold;color:#111;font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
-            '.' + META_CLASS + '{color:#666;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
+            '.' + META_CLASS + '{color:#666;font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
             '.' + MSG_CLASS + '{padding:8px 10px;color:#666;font-size:13px;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
             '.' + LIST_CLASS + '{max-height:168px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}',
             '.' + LIST_CLASS + '::-webkit-scrollbar{width:6px;}',
