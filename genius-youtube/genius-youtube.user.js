@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.4.3
+// @version      1.4.4
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -395,7 +395,7 @@
 
     function headerHtml() {
         const cls = (native.fieldLabel || HEADER_CLASS).trim();
-        return '<span class="' + cls + '" style="display:block;font-size:13px;text-transform:none;letter-spacing:0;color:#111;font-weight:600;line-height:1.4;">Vorschläge von YouTube</span>';
+        return '<span class="' + cls + '">YouTube Suggestions</span>';
     }
 
     function showLoading() {
