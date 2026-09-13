@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.4.7
+// @version      1.5.0
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -44,7 +44,6 @@
     let results = [];
     let inputTimer = null;
     let searchSeq = 0;
-    const cache = new Map();
     let native = { fieldLabel: '', option: '', input: '' };
 
     injectStyles();
@@ -236,11 +235,6 @@
 
         markSearched();
 
-        if (cache.has(query)) {
-            renderCached(cache.get(query));
-            return;
-        }
-
         log('search start, query=', JSON.stringify(query));
         const seq = ++searchSeq;
         showLoading();
@@ -248,31 +242,20 @@
             .then((parsed) => {
                 log('search success, query=', JSON.stringify(query), 'results=', parsed.items.length);
                 if (seq !== searchSeq || !currentInput) return;
-                cache.set(query, parsed);
                 render(parsed);
             })
             .catch((err) => {
                 console.error(PREFIX, 'search failed', err);
                 if (seq !== searchSeq || !currentInput) return;
-                showMessage('YouTube-Suche fehlgeschlagen. Bitte erneut versuchen.');
+                showMessage('YouTube search failed. Please try again.');
             });
-    }
-
-    function renderCached(parsed) {
-        if (parsed.blocked) {
-            showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
-        } else if (parsed.items.length === 0) {
-            showMessage('Keine Ergebnisse von YouTube gefunden.');
-        } else {
-            renderResults(parsed.items);
-        }
     }
 
     function render(parsed) {
         if (parsed.blocked) {
-            showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
+            showMessage('YouTube blocked the search (age restriction or consent). Try a different query.');
         } else if (parsed.items.length === 0) {
-            showMessage('Keine Ergebnisse von YouTube gefunden.');
+            showMessage('No results found on YouTube.');
         } else {
             renderResults(parsed.items);
         }
@@ -413,7 +396,7 @@
         if (!el) return;
         activeIndex = -1;
         el.innerHTML = headerHtml()
-            + '<div class="' + LIST_CLASS + '"><div class="' + MSG_CLASS + '">Suche auf YouTube…</div></div>';
+            + '<div class="' + LIST_CLASS + '"><div class="' + MSG_CLASS + '">Searching YouTube…</div></div>';
     }
 
     function showMessage(text) {
