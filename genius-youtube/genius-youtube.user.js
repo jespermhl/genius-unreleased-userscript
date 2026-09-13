@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.0.1
+// @version      1.1.0
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -27,21 +27,23 @@
     const DEBOUNCE_MS = 350;
     const MAX_RESULTS = 8;
 
-    const OVERLAY_CLASS = 'genius-yt-suggest';
-    const LIST_CLASS = 'genius-yt-suggest__list';
-    const ITEM_CLASS = 'genius-yt-suggest__item';
-    const ITEM_ACTIVE_CLASS = 'genius-yt-suggest__item is-active';
-    const THUMB_CLASS = 'genius-yt-suggest__thumb';
-    const TITLE_CLASS = 'genius-yt-suggest__title';
-    const META_CLASS = 'genius-yt-suggest__meta';
-    const MSG_CLASS = 'genius-yt-suggest__msg';
+    const RESULTS_CLASS = 'genius-yt-results';
+    const ROW_CLASS = 'genius-yt-results__row';
+    const ROW_ACTIVE_CLASS = 'genius-yt-results__row is-active';
+    const THUMB_CLASS = 'genius-yt-results__thumb';
+    const TITLE_CLASS = 'genius-yt-results__title';
+    const META_CLASS = 'genius-yt-results__meta';
+    const MSG_CLASS = 'genius-yt-results__msg';
+
+    const SEARCHED_ATTR = 'data-genius-yt-searched';
 
     let currentInput = null;
-    let overlay = null;
+    let resultsEl = null;
     let activeIndex = -1;
     let results = [];
     let inputTimer = null;
-    let closeTimer = null;
+    let searchSeq = 0;
+    const cache = new Map();
 
     injectStyles();
 
@@ -50,14 +52,16 @@
     function onDomMutation() {
         ensureBound();
         clearTimeout(observerTimer);
-        observerTimer = setTimeout(maybeAutoSearch, 250);
+        observerTimer = setTimeout(maybeAutoSearch, 300);
     }
 
     const observer = new MutationObserver(onDomMutation);
     observer.observe(document.body, { childList: true, subtree: true });
     log('script loaded, MutationObserver started');
     ensureBound();
-    setTimeout(maybeAutoSearch, 500);
+    setTimeout(maybeAutoSearch, 400);
+
+    // ---------------------------------------------------------------- binding
 
     function ensureBound() {
         const input = document.querySelector('#edit-metadata-body input[name="youtube_url"]');
@@ -69,41 +73,53 @@
         teardown();
         currentInput = input;
         bindInput(input);
-        log('bound to youtube_url input (type=',
-            input.type,
-            ', placeholder=',
+        log(
+            'bound to youtube_url input (placeholder=',
             JSON.stringify(input.placeholder),
             ', value=',
             JSON.stringify(input.value.slice(0, 40)),
-            ')');
+            ')'
+        );
     }
 
     function teardown() {
-        hideOverlay();
         if (currentInput) {
             currentInput.removeEventListener('focus', onFocus);
             currentInput.removeEventListener('input', onInput);
             currentInput.removeEventListener('keydown', onKeydown);
-            currentInput.removeEventListener('blur', onBlur);
         }
+        removeResults();
         currentInput = null;
+        resultsEl = null;
+        results = [];
+        activeIndex = -1;
     }
 
     function bindInput(input) {
         input.addEventListener('focus', onFocus);
         input.addEventListener('input', onInput);
         input.addEventListener('keydown', onKeydown);
-        input.addEventListener('blur', onBlur);
         maybeAutoSearch();
+    }
+
+    function alreadySearched() {
+        const modal = document.querySelector('#edit-metadata-body');
+        return !!(modal && modal.getAttribute(SEARCHED_ATTR));
+    }
+
+    function markSearched() {
+        const modal = document.querySelector('#edit-metadata-body');
+        if (modal) modal.setAttribute(SEARCHED_ATTR, 'true');
     }
 
     function maybeAutoSearch() {
         if (!currentInput) return;
+        if (alreadySearched()) return;
         if (!isVisible(currentInput)) return;
         if (currentInput.value.trim() && !looksLikeUrl(currentInput.value)) return;
         const query = buildQuery();
         if (!query) return;
-        log('auto-search (modal open, field visible) query=', JSON.stringify(query));
+        log('auto-search (first time) query=', JSON.stringify(query));
         startSearch(query);
     }
 
@@ -114,6 +130,8 @@
         const rect = el.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
     }
+
+    // ---------------------------------------------------------------- input events
 
     function onFocus() {
         if (!currentInput) return;
@@ -130,22 +148,17 @@
         clearTimeout(inputTimer);
         if (!currentInput) return;
         if (looksLikeUrl(currentInput.value)) {
-            hideOverlay();
+            clearResults();
             return;
         }
         inputTimer = setTimeout(() => startSearch(currentInput.value.trim() || buildQuery()), DEBOUNCE_MS);
     }
 
-    function onBlur() {
-        clearTimeout(closeTimer);
-        closeTimer = setTimeout(hideOverlay, 120);
-    }
-
     function onKeydown(event) {
-        if (!overlay || overlay.hidden) return;
+        if (!resultsEl || !resultsEl.isConnected || results.length === 0) return;
         if (event.key === 'Escape') {
             event.preventDefault();
-            hideOverlay();
+            clearResults();
         } else if (event.key === 'ArrowDown') {
             event.preventDefault();
             setActive(Math.min(activeIndex + 1, results.length - 1));
@@ -185,28 +198,20 @@
         return artists;
     }
 
-    let searchSeq = 0;
-    const cache = new Map();
+    // ---------------------------------------------------------------- search
 
     function startSearch(query) {
         clearTimeout(inputTimer);
 
         if (!query) {
-            hideOverlay();
+            clearResults();
             return;
         }
 
+        markSearched();
+
         if (cache.has(query)) {
-            const cached = cache.get(query);
-            results = cached.items;
-            activeIndex = -1;
-            if (cached.blocked) {
-                showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
-            } else if (results.length === 0) {
-                showMessage('Keine Ergebnisse von YouTube gefunden.');
-            } else {
-                renderResults();
-            }
+            renderCached(cache.get(query));
             return;
         }
 
@@ -215,27 +220,36 @@
         showLoading();
         searchYouTube(query)
             .then((parsed) => {
-                const items = parsed.items;
-                log('search success, query=', JSON.stringify(query), 'results=', items.length);
+                log('search success, query=', JSON.stringify(query), 'results=', parsed.items.length);
                 if (seq !== searchSeq || !currentInput) return;
-                results = parsed.items;
-                activeIndex = -1;
                 cache.set(query, parsed);
-                if (parsed.blocked) {
-                    showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
-                } else if (results.length === 0) {
-                    showMessage('Keine Ergebnisse von YouTube gefunden.');
-                } else {
-                    renderResults();
-                }
+                render(parsed);
             })
             .catch((err) => {
                 console.error(PREFIX, 'search failed', err);
                 if (seq !== searchSeq || !currentInput) return;
-                results = [];
-                activeIndex = -1;
                 showMessage('YouTube-Suche fehlgeschlagen. Bitte erneut versuchen.');
             });
+    }
+
+    function renderCached(parsed) {
+        if (parsed.blocked) {
+            showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
+        } else if (parsed.items.length === 0) {
+            showMessage('Keine Ergebnisse von YouTube gefunden.');
+        } else {
+            renderResults(parsed.items);
+        }
+    }
+
+    function render(parsed) {
+        if (parsed.blocked) {
+            showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
+        } else if (parsed.items.length === 0) {
+            showMessage('Keine Ergebnisse von YouTube gefunden.');
+        } else {
+            renderResults(parsed.items);
+        }
     }
 
     function searchYouTube(query) {
@@ -269,7 +283,6 @@
     function parseResults(responseText) {
         const data = JSON.parse(responseText);
         const items = [];
-        let blockedByAgeGate = false;
         walk(data, (node) => {
             const video = node.videoRenderer;
             if (!video) return false;
@@ -292,7 +305,7 @@
         const blocked = items.length === 0 && (
             responseText.includes('Confirm your age')
             || responseText.includes('backgroundPromoRenderer')
-            || responseText.includes('consent')
+            || responseText.toLowerCase().includes('consent')
         );
         if (blocked) {
             log('YouTube blocked the search (age gate / consent)');
@@ -322,84 +335,86 @@
         return node.simpleText;
     }
 
-    // ---------------------------------------------------------------- overlay UI
+    // ---------------------------------------------------------------- results UI (inline, Genius style)
 
-    function ensureOverlay() {
-        if (overlay && overlay.isConnected) return;
-        overlay = document.createElement('div');
-        overlay.className = OVERLAY_CLASS;
-        overlay.hidden = true;
-        document.body.appendChild(overlay);
+    function ensureResultsEl() {
+        if (resultsEl && resultsEl.isConnected) return resultsEl;
+        if (!currentInput) return null;
 
-        overlay.addEventListener('mousedown', (event) => event.preventDefault());
+        const label = currentInput.closest('label');
+        const container = label ? label.parentElement : currentInput.parentElement;
+        if (!container) return null;
 
-        overlay.addEventListener('click', (event) => {
-            const item = event.target.closest('.' + ITEM_CLASS);
-            if (!item) return;
-            selectResult(Number(item.getAttribute('data-index')));
-        });
-
-        document.addEventListener('mousedown', onDocumentMousedown, true);
-        window.addEventListener('resize', repositionOverlay);
+        resultsEl = document.createElement('div');
+        resultsEl.className = RESULTS_CLASS;
+        container.insertAdjacentElement('afterend', resultsEl);
+        return resultsEl;
     }
 
-    function onDocumentMousedown(event) {
-        if (!overlay || overlay.hidden) return;
-        if (currentInput && currentInput.contains(event.target)) return;
-        if (overlay.contains(event.target)) return;
-        hideOverlay();
+    function removeResults() {
+        if (resultsEl && resultsEl.isConnected) resultsEl.remove();
+        resultsEl = null;
+        results = [];
+        activeIndex = -1;
     }
 
-    function showOverlay() {
-        ensureOverlay();
-        overlay.hidden = false;
-        repositionOverlay();
-    }
-
-    function hideOverlay() {
-        clearTimeout(inputTimer);
-        if (overlay) {
-            overlay.hidden = true;
-            overlay.innerHTML = '';
-        }
+    function clearResults() {
+        if (resultsEl && resultsEl.isConnected) resultsEl.innerHTML = '';
         results = [];
         activeIndex = -1;
     }
 
     function showLoading() {
+        const el = ensureResultsEl();
+        if (!el) return;
         activeIndex = -1;
-        showOverlay();
-        overlay.innerHTML = '<ul class="' + LIST_CLASS + '"><li class="' + MSG_CLASS + '">Suche auf YouTube…</li></ul>';
+        el.innerHTML = '<div class="' + MSG_CLASS + '">Suche auf YouTube…</div>';
     }
 
     function showMessage(text) {
+        const el = ensureResultsEl();
+        if (!el) return;
         activeIndex = -1;
-        showOverlay();
-        overlay.innerHTML = '<ul class="' + LIST_CLASS + '"><li class="' + MSG_CLASS + '">' + esc(text) + '</li></ul>';
+        el.innerHTML = '<div class="' + MSG_CLASS + '">' + esc(text) + '</div>';
     }
 
-    function renderResults() {
+    function renderResults(items) {
+        const el = ensureResultsEl();
+        if (!el) return;
+        results = items;
         activeIndex = -1;
-        showOverlay();
-        overlay.innerHTML = '<ul class="' + LIST_CLASS + '">' + results.map((r, i) => {
+
+        el.innerHTML = items.map((r, i) => {
             const meta = [r.channel, r.duration, r.views].filter(Boolean).join(' · ');
             const thumb = 'https://i.ytimg.com/vi/' + encodeURIComponent(r.id) + '/mqdefault.jpg';
-            return '<li class="' + ITEM_CLASS + '" data-index="' + i + '">'
+            return '<div class="' + ROW_CLASS + '" data-index="' + i + '">'
                 + '<img class="' + THUMB_CLASS + '" src="' + thumb + '" alt="" loading="lazy">'
-                + '<div><div class="' + TITLE_CLASS + '">' + esc(r.title) + '</div>'
+                + '<div class="genius-yt-results__body"><div class="' + TITLE_CLASS + '">' + esc(r.title) + '</div>'
                 + '<div class="' + META_CLASS + '">' + esc(meta) + '</div></div>'
-                + '</li>';
-        }).join('') + '</ul>';
-        overlay.querySelector('li').classList.add('is-active');
-        activeIndex = 0;
+                + '</div>';
+        }).join('');
+
+        el.addEventListener('mouseover', (event) => {
+            const row = event.target.closest('.' + ROW_CLASS);
+            if (!row) return;
+            setActive(Number(row.getAttribute('data-index')));
+        });
+
+        el.addEventListener('mousedown', (event) => event.preventDefault());
+
+        el.addEventListener('click', (event) => {
+            const row = event.target.closest('.' + ROW_CLASS);
+            if (!row) return;
+            selectResult(Number(row.getAttribute('data-index')));
+        });
     }
 
     function setActive(index) {
         if (index < 0 || index >= results.length) return;
         activeIndex = index;
-        const items = overlay.querySelectorAll('.' + ITEM_CLASS);
-        items.forEach((el, i) => {
-            el.className = i === index ? ITEM_ACTIVE_CLASS : ITEM_CLASS;
+        const rows = resultsEl ? resultsEl.querySelectorAll('.' + ROW_CLASS) : [];
+        rows.forEach((el, i) => {
+            el.className = i === index ? ROW_ACTIVE_CLASS : ROW_CLASS;
         });
     }
 
@@ -409,7 +424,7 @@
         const url = 'https://www.youtube.com/watch?v=' + result.id;
         setNativeValue(currentInput, url);
         currentInput.dispatchEvent(new Event('input', { bubbles: true }));
-        hideOverlay();
+        removeResults();
         currentInput.focus();
     }
 
@@ -423,35 +438,20 @@
         }
     }
 
-    function repositionOverlay() {
-        if (!overlay || overlay.hidden || !currentInput) return;
-        const rect = currentInput.getBoundingClientRect();
-        const overlayRect = overlay.getBoundingClientRect();
-        const width = Math.max(rect.width, 360);
-        const gap = 4;
-        let top = rect.bottom + gap;
-        if (top + overlayRect.height > window.innerHeight) {
-            top = rect.top - gap - overlayRect.height;
-        }
-        if (top < 0) top = rect.bottom + gap;
-        overlay.style.width = width + 'px';
-        overlay.style.left = rect.left + 'px';
-        overlay.style.top = top + 'px';
-    }
+    // ---------------------------------------------------------------- styles
 
     function injectStyles() {
         const style = document.createElement('style');
         style.textContent = [
-            '.' + OVERLAY_CLASS + '{position:fixed;z-index:2147483000;background:#fff;color:#111;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.16);font:13px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden;}',
-            '.' + OVERLAY_CLASS + '[hidden]{display:none;}',
-            '.' + LIST_CLASS + '{margin:0;padding:4px;list-style:none;max-height:340px;overflow-y:auto;}',
-            '.' + ITEM_CLASS + '{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer;}',
-            '.' + ITEM_CLASS + '.is-active{background:#eef2ff;}',
-            '.' + THUMB_CLASS + '{width:80px;height:45px;object-fit:cover;border-radius:4px;flex:none;background:#eee;}',
-            '.' + TITLE_CLASS + '{font-weight:600;color:#111;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
-            '.' + META_CLASS + '{color:#606060;font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
-            '.' + MSG_CLASS + '{padding:10px 12px;color:#606060;}',
-            '@media (prefers-color-scheme: dark){.' + OVERLAY_CLASS + '{background:#282828;color:#fff;border-color:#404040;}.' + TITLE_CLASS + '{color:#fff;}.' + META_CLASS + ',.' + MSG_CLASS + '{color:#aaa;}.' + ITEM_CLASS + '.is-active{background:#3c4257;}}',
+            '.' + RESULTS_CLASS + '{margin:10px 0 2px;border:1px solid #e5e5e5;border-radius:4px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.08);overflow:hidden;}',
+            '.' + ROW_CLASS + '{display:flex;gap:12px;align-items:center;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f3f3f3;font-family:"Charter",Georgia,"Times New Roman",serif;}',
+            '.' + ROW_CLASS + ':last-child{border-bottom:none;}',
+            '.' + ROW_CLASS + '.is-active{background:#FFFF64;}',
+            '.' + THUMB_CLASS + '{width:92px;height:52px;object-fit:cover;border-radius:2px;flex:none;}',
+            '.genius-yt-results__body{min-width:0;}',
+            '.' + TITLE_CLASS + '{font-weight:bold;color:#111;font-size:14px;line-height:1.3;}',
+            '.' + META_CLASS + '{color:#666;font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
+            '.' + MSG_CLASS + '{padding:10px 14px;color:#666;font-size:13px;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
         ].join('');
         document.head.appendChild(style);
     }
