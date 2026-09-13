@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.0.0
+// @version      1.0.1
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -16,6 +16,9 @@
 
 (function () {
     'use strict';
+
+    const PREFIX = '[GeniusYouTubeURLFinder]';
+    const log = (...args) => console.info(PREFIX, ...args);
 
     const INNERTUBE_API = 'https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
     const INNERTUBE_CONTEXT = {
@@ -42,9 +45,19 @@
 
     injectStyles();
 
-    const observer = new MutationObserver(ensureBound);
+    let observerTimer = null;
+
+    function onDomMutation() {
+        ensureBound();
+        clearTimeout(observerTimer);
+        observerTimer = setTimeout(maybeAutoSearch, 250);
+    }
+
+    const observer = new MutationObserver(onDomMutation);
     observer.observe(document.body, { childList: true, subtree: true });
+    log('script loaded, MutationObserver started');
     ensureBound();
+    setTimeout(maybeAutoSearch, 500);
 
     function ensureBound() {
         const input = document.querySelector('#edit-metadata-body input[name="youtube_url"]');
@@ -56,6 +69,13 @@
         teardown();
         currentInput = input;
         bindInput(input);
+        log('bound to youtube_url input (type=',
+            input.type,
+            ', placeholder=',
+            JSON.stringify(input.placeholder),
+            ', value=',
+            JSON.stringify(input.value.slice(0, 40)),
+            ')');
     }
 
     function teardown() {
@@ -74,12 +94,36 @@
         input.addEventListener('input', onInput);
         input.addEventListener('keydown', onKeydown);
         input.addEventListener('blur', onBlur);
+        maybeAutoSearch();
+    }
+
+    function maybeAutoSearch() {
+        if (!currentInput) return;
+        if (!isVisible(currentInput)) return;
+        if (currentInput.value.trim() && !looksLikeUrl(currentInput.value)) return;
+        const query = buildQuery();
+        if (!query) return;
+        log('auto-search (modal open, field visible) query=', JSON.stringify(query));
+        startSearch(query);
+    }
+
+    function isVisible(el) {
+        if (!el || !el.isConnected) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
     }
 
     function onFocus() {
         if (!currentInput) return;
-        if (looksLikeUrl(currentInput.value)) return;
-        startSearch(currentInput.value.trim() || buildQuery());
+        startSearch(currentQuery());
+    }
+
+    function currentQuery() {
+        const value = currentInput.value.trim();
+        const typed = value && !looksLikeUrl(value) ? value : '';
+        return typed || buildQuery();
     }
 
     function onInput() {
@@ -153,31 +197,40 @@
         }
 
         if (cache.has(query)) {
-            results = cache.get(query);
+            const cached = cache.get(query);
+            results = cached.items;
             activeIndex = -1;
-            if (results.length === 0) {
-                showMessage('Keine Ergebnisse von YouTube gefunden. Vielleicht blockt YouTube die Suche (Altersbeschränkung oder Consent).');
+            if (cached.blocked) {
+                showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
+            } else if (results.length === 0) {
+                showMessage('Keine Ergebnisse von YouTube gefunden.');
             } else {
                 renderResults();
             }
             return;
         }
 
+        log('search start, query=', JSON.stringify(query));
         const seq = ++searchSeq;
         showLoading();
         searchYouTube(query)
-            .then((items) => {
+            .then((parsed) => {
+                const items = parsed.items;
+                log('search success, query=', JSON.stringify(query), 'results=', items.length);
                 if (seq !== searchSeq || !currentInput) return;
-                results = items;
+                results = parsed.items;
                 activeIndex = -1;
-                cache.set(query, items);
-                if (results.length === 0) {
-                    showMessage('Keine Ergebnisse von YouTube gefunden. Vielleicht blockt YouTube die Suche (Altersbeschränkung oder Consent).');
+                cache.set(query, parsed);
+                if (parsed.blocked) {
+                    showMessage('YouTube hat die Suche blockiert (Altersbeschränkung oder Consent). Versuche eine andere Suchanfrage.');
+                } else if (results.length === 0) {
+                    showMessage('Keine Ergebnisse von YouTube gefunden.');
                 } else {
                     renderResults();
                 }
             })
-            .catch(() => {
+            .catch((err) => {
+                console.error(PREFIX, 'search failed', err);
                 if (seq !== searchSeq || !currentInput) return;
                 results = [];
                 activeIndex = -1;
@@ -196,13 +249,19 @@
                 },
                 data: JSON.stringify(Object.assign({}, INNERTUBE_CONTEXT, { query })),
                 onload: (response) => {
+                    log('GM_xmlhttpRequest status=', response.status, 'len=', response.responseText.length);
                     try {
                         resolve(parseResults(response.responseText));
                     } catch (err) {
                         reject(err);
                     }
                 },
-                onerror: reject,
+                onerror: (resp) => {
+                    console.error(PREFIX, 'GM_xmlhttpRequest onerror', resp && resp.error);
+                    reject(resp);
+                },
+                ontimeout: () => reject(new Error('timeout')),
+                timeout: 15000,
             });
         });
     }
@@ -210,6 +269,7 @@
     function parseResults(responseText) {
         const data = JSON.parse(responseText);
         const items = [];
+        let blockedByAgeGate = false;
         walk(data, (node) => {
             const video = node.videoRenderer;
             if (!video) return false;
@@ -229,7 +289,16 @@
             });
             return false;
         });
-        return items.slice(0, MAX_RESULTS);
+        const blocked = items.length === 0 && (
+            responseText.includes('Confirm your age')
+            || responseText.includes('backgroundPromoRenderer')
+            || responseText.includes('consent')
+        );
+        if (blocked) {
+            log('YouTube blocked the search (age gate / consent)');
+            return { items: [], blocked: true };
+        }
+        return { items: items.slice(0, MAX_RESULTS), blocked: false };
     }
 
     function walk(node, visit) {
