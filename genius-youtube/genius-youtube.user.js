@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.4.4
+// @version      1.4.5
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -53,8 +53,18 @@
 
     function onDomMutation() {
         ensureBound();
+        restoreResults();
         clearTimeout(observerTimer);
         observerTimer = setTimeout(maybeAutoSearch, 300);
+    }
+
+    function restoreResults() {
+        if (!currentInput) return;
+        const hadResults = results.length > 0 && (!resultsEl || !resultsEl.isConnected);
+        if (!hadResults) return;
+        const el = ensureResultsEl();
+        if (!el || el.childElementCount > 0) return;
+        if (results.length > 0) renderResults(results);
     }
 
     const observer = new MutationObserver(onDomMutation);
@@ -499,7 +509,7 @@
             '.' + TITLE_CLASS + '{font-weight:700;color:#111;font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
             '.' + META_CLASS + '{color:#666;font-size:12px;font-weight:500;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
             '.' + MSG_CLASS + '{padding:8px 10px;color:#666;font-size:13px;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
-            '.' + LIST_CLASS + '{max-height:168px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}',
+            '.' + LIST_CLASS + '{max-height:132px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}',
             '.' + LIST_CLASS + '::-webkit-scrollbar{width:6px;}',
             '.' + LIST_CLASS + '::-webkit-scrollbar-thumb{background:#d5d5d5;border-radius:3px;}',
         ].join('');
