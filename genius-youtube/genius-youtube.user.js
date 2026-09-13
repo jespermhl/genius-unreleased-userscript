@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.4.5
+// @version      1.4.6
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -434,7 +434,7 @@
         const rowsHtml = items.map((r, i) => {
             const meta = [r.channel, r.duration].filter(Boolean).join(' · ');
             const thumb = 'https://i.ytimg.com/vi/' + encodeURIComponent(r.id) + '/mqdefault.jpg';
-            return '<div class="' + base + '" data-index="' + i + '" style="display:flex;align-items:center;gap:10px;">'
+            return '<div class="' + base + ' ' + ROW_CLASS + '" data-index="' + i + '" style="display:flex;align-items:center;gap:10px;">'
                 + '<img class="' + THUMB_CLASS + '" src="' + thumb + '" alt="" loading="lazy">'
                 + '<div class="genius-yt-results__body"><div class="' + TITLE_CLASS + '">' + esc(r.title) + '</div>'
                 + '<div class="' + META_CLASS + '">' + esc(meta) + '</div></div>'
@@ -464,7 +464,7 @@
         const base = rowBaseClass();
         const rows = resultsEl ? resultsEl.querySelectorAll('[data-index]') : [];
         rows.forEach((el, i) => {
-            el.className = base;
+            el.className = base + ' ' + ROW_CLASS;
             if (i === index) el.style.background = '#f5f5f5';
             else el.style.background = '';
         });
@@ -503,7 +503,8 @@
             '.genius-yt-results .' + LIST_CLASS + '{width:100%;box-sizing:border-box;}',
             'div[class*="AudioAndMedia__Gradient"]{display:none;}',
             '.' + HEADER_CLASS + '{display:block;padding:0 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#757575;font-family:"Inter","Helvetica Neue",Arial,sans-serif;font-weight:600;}',
-            '.' + ROW_CLASS + '{display:flex;align-items:center;gap:10px;padding:6px 8px;cursor:pointer;border-bottom:1px solid #eee;background:#fff;}',
+            '.' + ROW_CLASS + '{display:flex;align-items:center;gap:10px;padding:6px 8px;cursor:pointer;border:0!important;border-bottom:1px solid #eee!important;background:#fff!important;box-shadow:none!important;}',
+            '.' + ROW_CLASS + '::before,' + '.' + ROW_CLASS + '::after{content:none!important;border:0!important;background:none!important;}',
             '.' + THUMB_CLASS + '{width:64px;height:36px;object-fit:cover;border-radius:2px;flex:none;}',
             '.genius-yt-results__body{min-width:0;flex:1;}',
             '.' + TITLE_CLASS + '{font-weight:700;color:#111;font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
