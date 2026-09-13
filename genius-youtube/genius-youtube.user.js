@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.3.2
+// @version      1.3.3
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -484,7 +484,7 @@
             '.' + THUMB_CLASS + '{width:64px;height:36px;object-fit:cover;border-radius:2px;flex:none;}',
             '.genius-yt-results__body{min-width:0;flex:1;}',
             '.' + TITLE_CLASS + '{font-weight:700;color:#111;font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
-            '.' + META_CLASS + '{color:#444;font-size:12px;font-weight:600;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
+            '.' + META_CLASS + '{color:#666;font-size:12px;font-weight:500;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
             '.' + MSG_CLASS + '{padding:8px 10px;color:#666;font-size:13px;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
             '.' + LIST_CLASS + '{max-height:168px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}',
             '.' + LIST_CLASS + '::-webkit-scrollbar{width:6px;}',
