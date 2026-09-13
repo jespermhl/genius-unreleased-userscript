@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.1.0
+// @version      1.2.0
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -28,6 +28,8 @@
     const MAX_RESULTS = 8;
 
     const RESULTS_CLASS = 'genius-yt-results';
+    const HEADER_CLASS = 'genius-yt-results__header';
+    const LIST_CLASS = 'genius-yt-results__list';
     const ROW_CLASS = 'genius-yt-results__row';
     const ROW_ACTIVE_CLASS = 'genius-yt-results__row is-active';
     const THUMB_CLASS = 'genius-yt-results__thumb';
@@ -341,13 +343,13 @@
         if (resultsEl && resultsEl.isConnected) return resultsEl;
         if (!currentInput) return null;
 
-        const label = currentInput.closest('label');
-        const container = label ? label.parentElement : currentInput.parentElement;
-        if (!container) return null;
+        const row = currentInput.closest('div[class*="MetadataRow"]');
+        const anchor = row || currentInput.closest('label').parentElement;
+        if (!anchor) return null;
 
         resultsEl = document.createElement('div');
         resultsEl.className = RESULTS_CLASS;
-        container.insertAdjacentElement('afterend', resultsEl);
+        anchor.insertAdjacentElement('afterend', resultsEl);
         return resultsEl;
     }
 
@@ -368,14 +370,16 @@
         const el = ensureResultsEl();
         if (!el) return;
         activeIndex = -1;
-        el.innerHTML = '<div class="' + MSG_CLASS + '">Suche auf YouTube…</div>';
+        el.innerHTML = '<div class="' + HEADER_CLASS + '">Vorschläge von YouTube</div>'
+            + '<div class="' + LIST_CLASS + '"><div class="' + MSG_CLASS + '">Suche auf YouTube…</div></div>';
     }
 
     function showMessage(text) {
         const el = ensureResultsEl();
         if (!el) return;
         activeIndex = -1;
-        el.innerHTML = '<div class="' + MSG_CLASS + '">' + esc(text) + '</div>';
+        el.innerHTML = '<div class="' + HEADER_CLASS + '">Vorschläge von YouTube</div>'
+            + '<div class="' + LIST_CLASS + '"><div class="' + MSG_CLASS + '">' + esc(text) + '</div></div>';
     }
 
     function renderResults(items) {
@@ -384,7 +388,7 @@
         results = items;
         activeIndex = -1;
 
-        el.innerHTML = items.map((r, i) => {
+        const rowsHtml = items.map((r, i) => {
             const meta = [r.channel, r.duration, r.views].filter(Boolean).join(' · ');
             const thumb = 'https://i.ytimg.com/vi/' + encodeURIComponent(r.id) + '/mqdefault.jpg';
             return '<div class="' + ROW_CLASS + '" data-index="' + i + '">'
@@ -393,6 +397,9 @@
                 + '<div class="' + META_CLASS + '">' + esc(meta) + '</div></div>'
                 + '</div>';
         }).join('');
+
+        el.innerHTML = '<div class="' + HEADER_CLASS + '">Vorschläge von YouTube</div>'
+            + '<div class="' + LIST_CLASS + '">' + rowsHtml + '</div>';
 
         el.addEventListener('mouseover', (event) => {
             const row = event.target.closest('.' + ROW_CLASS);
@@ -416,6 +423,8 @@
         rows.forEach((el, i) => {
             el.className = i === index ? ROW_ACTIVE_CLASS : ROW_CLASS;
         });
+        const active = rows[activeIndex];
+        if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
     }
 
     function selectResult(index) {
@@ -443,15 +452,19 @@
     function injectStyles() {
         const style = document.createElement('style');
         style.textContent = [
-            '.' + RESULTS_CLASS + '{margin:10px 0 2px;border:1px solid #e5e5e5;border-radius:4px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.08);overflow:hidden;}',
-            '.' + ROW_CLASS + '{display:flex;gap:12px;align-items:center;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f3f3f3;font-family:"Charter",Georgia,"Times New Roman",serif;}',
+            '.' + RESULTS_CLASS + '{margin:8px 0 4px;max-width:440px;background:#fff;border:1px solid #e5e5e5;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.08);overflow:hidden;}',
+            '.' + HEADER_CLASS + '{padding:8px 12px;border-bottom:1px solid #eee;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#9a9aa6;font-family:"Inter","Helvetica Neue",Arial,sans-serif;font-weight:600;}',
+            '.' + ROW_CLASS + '{display:flex;gap:10px;align-items:center;padding:7px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;font-family:"Charter",Georgia,"Times New Roman",serif;}',
             '.' + ROW_CLASS + ':last-child{border-bottom:none;}',
             '.' + ROW_CLASS + '.is-active{background:#FFFF64;}',
-            '.' + THUMB_CLASS + '{width:92px;height:52px;object-fit:cover;border-radius:2px;flex:none;}',
-            '.genius-yt-results__body{min-width:0;}',
-            '.' + TITLE_CLASS + '{font-weight:bold;color:#111;font-size:14px;line-height:1.3;}',
-            '.' + META_CLASS + '{color:#666;font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
-            '.' + MSG_CLASS + '{padding:10px 14px;color:#666;font-size:13px;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
+            '.' + THUMB_CLASS + '{width:64px;height:36px;object-fit:cover;border-radius:2px;flex:none;}',
+            '.genius-yt-results__body{min-width:0;flex:1;}',
+            '.' + TITLE_CLASS + '{font-weight:bold;color:#111;font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
+            '.' + META_CLASS + '{color:#666;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
+            '.' + MSG_CLASS + '{padding:10px 12px;color:#666;font-size:13px;font-family:"Inter","Helvetica Neue",Arial,sans-serif;}',
+            '.' + LIST_CLASS + '{max-height:168px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}',
+            '.' + LIST_CLASS + '::-webkit-scrollbar{width:6px;}',
+            '.' + LIST_CLASS + '::-webkit-scrollbar-thumb{background:#d5d5d5;border-radius:3px;}',
         ].join('');
         document.head.appendChild(style);
     }
