@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genius YouTube URL Finder
 // @namespace    https://github.com/jespermhl
-// @version      1.3.3
+// @version      1.4.0
 // @description  Searches YouTube from the "YouTube URL" field in the Genius song metadata popup (using the song title and artists) and inserts the video URL on click.
 // @author       jespermhl
 // @match        https://genius.com/*-lyrics
@@ -361,6 +361,15 @@
         if (resultsEl && resultsEl.isConnected) return resultsEl;
         if (!currentInput) return null;
 
+        const artInput = document.querySelector('#edit-metadata-body input[name="custom_song_art_image_url"]');
+        const artRow = artInput ? artInput.closest('div[class*="MetadataRow"]') : null;
+        if (artRow) {
+            resultsEl = document.createElement('div');
+            resultsEl.className = RESULTS_CLASS;
+            artRow.insertAdjacentElement('afterbegin', resultsEl);
+            return resultsEl;
+        }
+
         const row = currentInput.closest('div[class*="MetadataRow"]');
         const anchor = row || currentInput.closest('label').parentElement;
         if (!anchor) return null;
@@ -478,7 +487,9 @@
     function injectStyles() {
         const style = document.createElement('style');
         style.textContent = [
-            '.' + RESULTS_CLASS + '{margin:8px 0 4px;max-width:440px;}',
+            '.' + RESULTS_CLASS + '{grid-column:1;margin:0;align-self:start;}',
+            '.genius-yt-results .' + LIST_CLASS + '{width:100%;box-sizing:border-box;}',
+            'div[class*="AudioAndMedia__Gradient"]{display:none;}',
             '.' + HEADER_CLASS + '{display:block;padding:0 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#757575;font-family:"Inter","Helvetica Neue",Arial,sans-serif;font-weight:600;}',
             '.' + ROW_CLASS + '{display:flex;align-items:center;gap:10px;padding:6px 8px;cursor:pointer;border-bottom:1px solid #eee;background:#fff;}',
             '.' + THUMB_CLASS + '{width:64px;height:36px;object-fit:cover;border-radius:2px;flex:none;}',
